@@ -1,6 +1,7 @@
-import { bank } from "../data/questions.js?v=labels-1";
-import { findMistakes } from "./engine.js?v=labels-1";
+import { bank, branchScenarios } from "../data/questions.js?v=branch-2";
+import { findMistakes } from "./engine.js?v=branch-2";
 const STORAGE_KEY = "vault-training-v1";
+const SCENARIO_RESULTS_KEY = "vault-scenario-results-v1";
 const DEFAULT_SETTINGS = {
   large: true,
   voice: false,
@@ -8,11 +9,13 @@ const DEFAULT_SETTINGS = {
   speechLanguage: "mandarin",
 };
 let state = { attempts: [], settings: { ...DEFAULT_SETTINGS } };
+let scenarioResults = [];
 let storageOK = true;
 let notifyWarning = () => {};
 export function loadState(onWarning = () => {}) {
   notifyWarning = onWarning;
   state = { attempts: [], settings: { ...DEFAULT_SETTINGS } };
+  scenarioResults = [];
   storageOK = true;
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -46,6 +49,16 @@ export function loadState(onWarning = () => {}) {
   } catch {
     storageOK = false;
   }
+  try {
+    const savedResults = JSON.parse(localStorage.getItem(SCENARIO_RESULTS_KEY));
+    if (Array.isArray(savedResults))
+      scenarioResults = savedResults
+        .map(normalizeScenarioResult)
+        .filter(Boolean);
+  } catch {
+    if (storageOK)
+      notifyWarning("目前無法讀取情境紀錄，本次仍可練習。");
+  }
   if (!storageOK) notifyWarning("目前無法讀取儲存空間，本次仍可練習。");
 }
 function persist() {
@@ -58,6 +71,9 @@ function persist() {
 // Return a copy so pages and external modules cannot mutate stored state.
 export function getState() {
   return structuredClone(state);
+}
+export function getScenarioResults() {
+  return structuredClone(scenarioResults);
 }
 export function updateSettings(patch) {
   if (["mandarin", "taigi", "hakka"].includes(patch.speechLanguage))
@@ -96,4 +112,86 @@ export function recordResult(payload) {
       detail: { questionId: question.id, correct: payload.correct },
     }),
   );
+}
+
+function normalizeScenarioResult(payload) {
+  if (
+    !payload ||
+    typeof payload.scenarioId !== "string" ||
+    !Array.isArray(payload.path) ||
+    !payload.path.length ||
+    payload.path.length > 8
+  )
+    return null;
+  const scenario = branchScenarios.find((item) => item.id === payload.scenarioId);
+  if (!scenario) return null;
+  let expectedNodeId = scenario.startId;
+  let correctCount = 0;
+  const path = [];
+  for (let i = 0; i < payload.path.length; i++) {
+    const step = payload.path[i];
+    const question = bank.find(
+      (item) =>
+        item.id === expectedNodeId && item.branchScenario === scenario.id,
+    );
+    if (
+      !question ||
+      step?.nodeId !== question.id ||
+      step?.questionId !== question.id ||
+      !Number.isInteger(step.optionIndex) ||
+      step.optionIndex < 0 ||
+      step.optionIndex >= question.options.length ||
+      step.optionText !== question.options[step.optionIndex] ||
+      typeof step.correct !== "boolean"
+    )
+      return null;
+    const correct = step.optionIndex === question.answer;
+    if (step.correct !== correct) return null;
+    const nextId = question.next[step.optionIndex] ?? null;
+    if (i < payload.path.length - 1) {
+      if (!nextId || nextId !== payload.path[i + 1]?.nodeId) return null;
+      expectedNodeId = nextId;
+    } else if (
+      nextId !== null ||
+      question.endingIds?.[step.optionIndex] !== payload.endingId
+    )
+      return null;
+    correctCount += Number(correct);
+    path.push({
+      nodeId: question.id,
+      questionId: question.id,
+      optionIndex: step.optionIndex,
+      optionText: question.options[step.optionIndex],
+      correct,
+    });
+  }
+  if (payload.score !== correctCount || payload.maxScore !== path.length)
+    return null;
+  return {
+    scenarioId: scenario.id,
+    path,
+    endingId: payload.endingId,
+    score: correctCount,
+    maxScore: path.length,
+    completedAt: Number.isFinite(payload.completedAt)
+      ? payload.completedAt
+      : Date.now(),
+  };
+}
+
+export function recordScenarioResult(payload) {
+  const result = normalizeScenarioResult(payload);
+  if (!result)
+    throw new Error("情境結果路徑、選項、分數或結局不符合題庫設定");
+  scenarioResults.push(result);
+  try {
+    localStorage.setItem(SCENARIO_RESULTS_KEY, JSON.stringify(scenarioResults));
+  } catch {
+    notifyWarning("瀏覽器無法儲存情境紀錄，目前只保留在本次開啟期間。");
+  }
+  const detail = structuredClone(result);
+  window.dispatchEvent(
+    new CustomEvent("vault:scenario-result-saved", { detail }),
+  );
+  return detail;
 }

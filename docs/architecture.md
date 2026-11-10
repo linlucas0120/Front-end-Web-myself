@@ -18,6 +18,7 @@
 | 需求 | 檔案 |
 | --- | --- |
 | 題目、答案與解說 | `dist/js/data/questions.js` |
+| 分支情境資料與後續節點 | `dist/js/data/questions.js`、`dist/js/features/exercise.js` |
 | 特大／最大字短版選項 | `dist/js/data/compact-options.js` |
 | 首頁主要練習按鈕與次要入口 | `dist/js/pages/home.js`、`dist/js/components/tiles.js` |
 | 隨機出題與複習排序 | `dist/js/core/engine.js` |
@@ -60,9 +61,11 @@
 - `#mistakes`：保留的錯題筆記路由。
 - `#guide`：使用說明。
 
-練習優先排序為錯題、未練習、較少練習。最近一次答對的題目會移出錯題清單。每筆有效作答紀錄都獲得一顆安心星，答錯及重複同題也計入；星星沒有題庫數量上限。勳章仍以不同情境及類型判斷。夥伴在 3 顆星時披上披風，9 顆星（目前題庫數量）時戴上皇冠，之後仍可繼續收星。既有紀錄直接重新計算，不做寫入遷移。成長規則在 `core/rewards.js`，插圖在 `components/companion.js`，動畫尊重減少動態效果設定。
+練習優先排序為錯題、未練習、較少練習。最近一次答對的題目會移出錯題清單。每筆有效作答紀錄都獲得一顆安心星，答錯及重複同題也計入；星星沒有題庫數量上限。勳章仍以不同情境及類型判斷。夥伴在 3 顆星時披上披風，9 顆星時戴上皇冠，之後仍可繼續收星。既有紀錄直接重新計算，不做寫入遷移。成長規則在 `core/rewards.js`，插圖在 `components/companion.js`，動畫尊重減少動態效果設定。
 
-`localStorage` 使用 `vault-training-v1` 保存紀錄與設定；`sessionStorage` 使用 `vault-exercise-v1` 還原同分頁練習進度。保留既有 key，避免升級後遺失資料。
+`localStorage` 使用 `vault-training-v1` 保存一般逐題紀錄與設定；`sessionStorage` 使用 `vault-exercise-v1` 還原同分頁練習進度。保留既有 key，避免升級後遺失資料。
+
+分支練習由 `borrow-branch` 啟動，沿著每個答案的 `next` 節點動態延伸會話；中途節點不會混入一般隨機練習。分支答案、下一個節點與已走過的路徑會放在既有 `sessionStorage` 會話中，重新整理可接續。完成時另把逐步節點／題目、所選選項、結局 ID 與得分保存至本機 `localStorage` 的 `vault-scenario-results-v1`，並派發 `vault:scenario-result-saved`。此資料不會送到伺服器。分支作答照常記錄並獲得星星，但「完成全部情境」仍只計算原本 9 題一般題，避免要求玩家走遍互斥路徑。
 
 ## 網站入口
 

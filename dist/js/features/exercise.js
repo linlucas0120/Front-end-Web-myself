@@ -1,19 +1,34 @@
-import { completionCard } from "../components/completion.js?v=labels-1";
-import { renderFocusExercise } from "./focus-reader.js?v=labels-1";
-import { compactOptions } from "../data/compact-options.js?v=labels-1";
-import { $ } from "../core/dom.js?v=labels-1";
-import { bank, types } from "../data/questions.js?v=labels-1";
-import { getState, recordResult } from "../core/store.js?v=labels-1";
-import { selectQuestions } from "../core/engine.js?v=labels-1";
-import { restoreSession, saveSession } from "../core/session.js?v=labels-1";
-import { say, stopSpeech, isSpeaking } from "./accessibility.js?v=labels-1";
+import { completionCard } from "../components/completion.js?v=branch-2";
+import { renderFocusExercise } from "./focus-reader.js?v=branch-2";
+import { compactOptions } from "../data/compact-options.js?v=branch-2";
+import { $ } from "../core/dom.js?v=branch-2";
+import { bank, types } from "../data/questions.js?v=branch-2";
+import {
+  getState,
+  recordResult,
+  recordScenarioResult,
+} from "../core/store.js?v=branch-2";
+import { selectQuestions } from "../core/engine.js?v=branch-2";
+import { restoreSession, saveSession } from "../core/session.js?v=branch-2";
+import { say, stopSpeech, isSpeaking } from "./accessibility.js?v=branch-2";
 export function createExerciseController({ refresh }) {
   let session = restoreSession(bank);
   let lastFocusSpeech = "";
   function start(mode, id) {
     const qs = selectQuestions(bank, getState().attempts, mode, id);
     if (!qs.length) return;
-    session = { qs, index: 0, score: 0, answered: false, complete: false };
+    session = {
+      qs,
+      index: 0,
+      score: 0,
+      answered: false,
+      complete: false,
+      branchFlow: mode === "borrow-branch",
+      branchScenario: mode === "borrow-branch" ? qs[0].branchScenario : null,
+      nextId: null,
+      selectedAnswer: null,
+      branchPath: [],
+    };
     saveSession(session);
     if (location.hash === "#exercise") refresh();
     else location.hash = "exercise";
@@ -39,6 +54,35 @@ export function createExerciseController({ refresh }) {
     }
     if (session.answered) {
       $("#quizBody").innerHTML = feedback(q, session.correct);
+      if (q.branchResponses?.[session.selectedAnswer]) {
+        const outcome = document.createElement("section");
+        outcome.className = "safe-action";
+        const heading = document.createElement("h2");
+        heading.textContent = "這一步會發生什麼？";
+        const description = document.createElement("p");
+        description.textContent = q.branchResponses[session.selectedAnswer];
+        outcome.append(heading, description);
+        $("#quizBody .safe-action")?.before(outcome);
+      }
+      if (session.branchFlow) {
+        const nextButton = $("#quizBody [data-next]");
+        if (nextButton)
+          nextButton.innerHTML = session.nextId
+            ? '下一步 <span aria-hidden="true">→</span>'
+            : '看練習結果 <span aria-hidden="true">→</span>';
+      }
+      return;
+    }
+    if (session.branchFlow) {
+      $("#quizBody").innerHTML =
+        `<div class="quiz-top"><span>${types[q.type].name}</span><span>分支情境 · 第 ${session.index + 1} 步</span></div><div class="quiz-content question-layout"><h1>${q.title}</h1><div class="scenario ${q.type}"><div class="scenario-label">${q.sender}</div><div class="bubble">${q.text}</div></div><button class="secondary read-question" data-read data-idle-label="唸題目和答案給我聽">唸題目和答案給我聽</button><h2 class="answer-prompt">你會怎麼做？</h2><p class="answer-instruction">慢慢想，選好後點一下答案就可以。</p><div class="options">${q.options.map((option, index) => `<button class="option" data-answer="${index}"><span class="option-number" aria-hidden="true">${index + 1}</span><span>${option}</span></button>`).join("")}</div></div>`;
+      say(
+        q.title +
+          "。" +
+          q.text +
+          "。你會怎麼做？" +
+          q.options.map((o, i) => i + 1 + "，" + o).join("。"),
+      );
       return;
     }
     $("#quizBody").innerHTML =
@@ -58,8 +102,18 @@ export function createExerciseController({ refresh }) {
     session.answered = true;
     session.readerOffset = 0;
     session.readerHistory = [];
+    session.selectedAnswer = i;
+    session.nextId = session.branchFlow ? q.next[i] ?? null : null;
     session.correct = i === q.answer;
     if (session.correct) session.score++;
+    if (session.branchFlow)
+      session.branchPath.push({
+        nodeId: q.id,
+        questionId: q.id,
+        optionIndex: i,
+        optionText: q.options[i],
+        correct: session.correct,
+      });
     recordResult({ questionId: q.id, correct: session.correct });
     saveSession(session);
     renderQuestion();
@@ -68,11 +122,57 @@ export function createExerciseController({ refresh }) {
     $("#main").focus({ preventScroll: true });
     if (getState().settings.fontLevel < 2)
       say(
-        (session.correct ? "答對了！" : "沒關係，我們一起看懂它。") + q.explain,
+        (session.correct ? "答對了！" : "沒關係，我們一起看懂它。") +
+          (q.branchResponses?.[i]
+            ? "你選的做法會怎樣？" + q.branchResponses[i]
+            : "") +
+          q.explain,
       );
   }
   function next() {
     if (!session?.answered || session.complete) return;
+    if (session.branchFlow) {
+      const nextQuestion = session.nextId
+        ? bank.find(
+            (question) =>
+              question.id === session.nextId &&
+              question.branchScenario === session.branchScenario,
+          )
+        : null;
+      if (nextQuestion) {
+        session.qs.push(nextQuestion);
+        session.index = session.qs.length - 1;
+        session.answered = false;
+        session.correct = undefined;
+        session.selectedAnswer = null;
+        session.nextId = null;
+        session.questionView = "read";
+        session.readerOffset = 0;
+        session.readerHistory = [];
+        saveSession(session);
+        renderQuestion();
+        window.scrollTo(0, 0);
+        $("#main").focus({ preventScroll: true });
+      } else {
+        const finalStep = session.branchPath.at(-1);
+        const finalQuestion = bank.find((question) => question.id === finalStep?.questionId);
+        recordScenarioResult({
+          scenarioId: session.branchScenario,
+          path: session.branchPath,
+          endingId: finalQuestion?.endingIds?.[finalStep?.optionIndex],
+          score: session.score,
+          maxScore: session.branchPath.length,
+          completedAt: Date.now(),
+        });
+        session.complete = true;
+        saveSession(session);
+        refresh();
+        window.scrollTo(0, 0);
+        $("#main").focus({ preventScroll: true });
+        say("你完成了，真棒！");
+      }
+      return;
+    }
     if (session.index + 1 < session.qs.length) {
       session.index++;
       session.answered = false;
@@ -127,6 +227,11 @@ export function createExerciseController({ refresh }) {
         "安全的做法。" +
           question.options[question.answer] +
           "。" +
+          (question.branchResponses?.[session.selectedAnswer]
+            ? "你選的做法會怎樣？" +
+              question.branchResponses[session.selectedAnswer] +
+              "。"
+            : "") +
           question.explain,
         true,
       );

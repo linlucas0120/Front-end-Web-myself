@@ -1,9 +1,9 @@
-import { pageNarration } from "./page-narration.js?v=labels-1";
-import { $ } from "../core/dom.js?v=labels-1";
-import { getState, updateSettings } from "../core/store.js?v=labels-1";
-import { toast } from "../components/notifications.js?v=labels-1";
-import { createTaiwaneseSpeech } from "./taiwanese-tts.js?v=labels-1";
-import { createHakkaSpeech } from "./hakka-tts.js?v=labels-1";
+import { pageNarration } from "./page-narration.js?v=branch-2";
+import { $ } from "../core/dom.js?v=branch-2";
+import { getState, updateSettings } from "../core/store.js?v=branch-2";
+import { toast } from "../components/notifications.js?v=branch-2";
+import { createTaiwaneseSpeech } from "./taiwanese-tts.js?v=branch-2";
+import { createHakkaSpeech } from "./hakka-tts.js?v=branch-2";
 function updateReadButton(state) {
   document.querySelectorAll("[data-read], #pageReadBtn").forEach((button) => {
     const pageButton = button.id === "pageReadBtn";

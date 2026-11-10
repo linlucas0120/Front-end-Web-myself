@@ -1,3 +1,5 @@
+import { branchScenarios } from "../data/questions.js?v=branch-2";
+
 export function shuffle(a) {
   const out = [...a];
   for (let i = out.length - 1; i > 0; i--) {
@@ -38,8 +40,12 @@ export function selectReview(
 }
 export function selectQuestions(questions, attempts, mode, questionId) {
   if (questionId) return questions.filter((q) => q.id === questionId);
+  const scenario = branchScenarios.find((item) => item.mode === mode);
+  if (scenario)
+    return questions.filter((q) => q.id === scenario.startId).slice(0, 1);
   if (mode === "review") return selectReview(questions, attempts);
+  const regularQuestions = questions.filter((q) => !q.branchScenario);
   return shuffle(
-    questions.filter((q) => mode === "random" || q.type === mode),
+    regularQuestions.filter((q) => mode === "random" || q.type === mode),
   ).slice(0, 3);
 }

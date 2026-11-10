@@ -1,15 +1,20 @@
 // Each saved, valid attempt earns one star, including repeat practice and mistakes.
 export function getRewards(attempts, questions) {
   const validIds = new Set(questions.map((q) => q.id));
+  const regularQuestions = questions.filter((q) => !q.branchScenario);
   const validAttempts = attempts.filter(
     (a) => a && validIds.has(a.id) && typeof a.correct === "boolean",
   );
-  const completed = new Set(validAttempts.map((a) => a.id));
-  const categories = new Set(
-    questions.filter((q) => completed.has(q.id)).map((q) => q.type),
+  const completed = new Set(
+    validAttempts
+      .filter((a) => regularQuestions.some((q) => q.id === a.id))
+      .map((a) => a.id),
   );
-  const categoryTotal = new Set(questions.map((q) => q.type)).size;
-  const total = questions.length;
+  const categories = new Set(
+    regularQuestions.filter((q) => completed.has(q.id)).map((q) => q.type),
+  );
+  const categoryTotal = new Set(regularQuestions.map((q) => q.type)).size;
+  const total = regularQuestions.length;
   const completedCount = completed.size;
   const stars = validAttempts.length;
   const badges = [
