@@ -1,5 +1,5 @@
-import { bank, branchScenarios } from "../data/questions.js?v=branch-2";
-import { findMistakes } from "./engine.js?v=branch-2";
+import { bank, branchScenarios } from "../data/questions.js?v=job-9-4";
+import { findMistakes } from "./engine.js?v=job-9-4";
 const STORAGE_KEY = "vault-training-v1";
 const SCENARIO_RESULTS_KEY = "vault-scenario-results-v1";
 const DEFAULT_SETTINGS = {

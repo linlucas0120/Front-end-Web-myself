@@ -1,10 +1,10 @@
-import { bank } from "../data/questions.js?v=branch-2";
+import { bank } from "../data/questions.js?v=job-9-4";
 import {
   getState,
   getScenarioResults,
   recordResult,
-} from "../core/store.js?v=branch-2";
-import { toast } from "../components/notifications.js?v=branch-2";
+} from "../core/store.js?v=job-9-4";
+import { toast } from "../components/notifications.js?v=job-9-4";
 // Public compatibility boundary shared by the three team modules.
 export function initIntegration(exercise) {
   window.VaultTraining = Object.freeze({
@@ -14,7 +14,7 @@ export function initIntegration(exercise) {
     getScenarioResults,
     startPractice: (mode) =>
       exercise.start(
-        ["line", "phone", "shop", "review", "borrow-branch"].includes(mode)
+        ["line", "phone", "shop", "review", "all", "borrow-branch"].includes(mode)
           ? mode
           : "random",
       ),

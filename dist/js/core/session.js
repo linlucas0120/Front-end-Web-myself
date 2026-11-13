@@ -1,4 +1,6 @@
 // Keep an in-progress exercise through refreshes without recording answers twice.
+import { STARTING_MONEY } from "./money.js?v=job-9-4";
+import { activeLineQuestionIds } from "../data/questions.js?v=job-9-4";
 const KEY = "vault-exercise-v1";
 export function validateDraft(draft, questions) {
   const maxQuestions = draft?.branchFlow === true ? 8 : 3;
@@ -14,6 +16,16 @@ export function validateDraft(draft, questions) {
     return null;
   const branchFlow = draft.branchFlow === true;
   const branchScenario = selected[0]?.branchScenario || null;
+  if (
+    !branchFlow &&
+    selected.some((question) => !activeLineQuestionIds.includes(question.id))
+  )
+    return null;
+  if (
+    draft.money !== undefined &&
+    (!Number.isInteger(draft.money) || draft.money < 0 || draft.money > STARTING_MONEY)
+  )
+    return null;
   if (
     branchFlow &&
     (!branchScenario || selected.some((q) => q.branchScenario !== branchScenario))
@@ -109,6 +121,8 @@ export function validateDraft(draft, questions) {
     })),
     branchFlow,
     branchScenario,
+    money: draft.money ?? STARTING_MONEY,
+    bankruptAcknowledged: draft.bankruptAcknowledged === true,
     nextId: typeof draft.nextId === "string" ? draft.nextId : null,
     questionView: draft.questionView === "choose" ? "choose" : "read",
     readerOffset:
@@ -118,6 +132,12 @@ export function validateDraft(draft, questions) {
     readerHistory: Array.isArray(draft.readerHistory)
       ? draft.readerHistory.filter((x) => Number.isInteger(x) && x >= 0)
       : [],
+    interactionStage: draft.interactionStage === "job-refusal"
+      ? "job-block-ready"
+      : ["compose", "fake-site", "screen-share", "hangup", "job-contact", "job-payment", "job-payment-warning", "job-block-ready", "job-menu", "job-blocked"].includes(draft.interactionStage)
+      ? draft.interactionStage
+      : "chat",
+    sentMessage: typeof draft.sentMessage === "string" ? draft.sentMessage : "",
   };
 }
 export function restoreSession(questions) {
@@ -143,10 +163,14 @@ export function saveSession(session) {
           selectedAnswer: session.selectedAnswer,
           branchPath: session.branchPath,
           branchFlow: session.branchFlow,
+          money: session.money,
+          bankruptAcknowledged: session.bankruptAcknowledged,
           nextId: session.nextId,
           questionView: session.questionView,
           readerOffset: session.readerOffset,
           readerHistory: session.readerHistory,
+          interactionStage: session.interactionStage,
+          sentMessage: session.sentMessage,
         }),
       );
   } catch {

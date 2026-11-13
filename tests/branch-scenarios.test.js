@@ -1,10 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bank, branchScenarios } from "../dist/js/data/questions.js";
+import {
+  activeLineQuestionIds,
+  bank,
+  branchScenarios,
+} from "../dist/js/data/questions.js";
 import { compactOptions } from "../dist/js/data/compact-options.js";
 import { selectQuestions } from "../dist/js/core/engine.js";
 import { validateDraft } from "../dist/js/core/session.js";
-import { getRewards } from "../dist/js/core/rewards.js";
+import { getCompanion, getRewards } from "../dist/js/core/rewards.js";
 import {
   getScenarioResults,
   getState,
@@ -81,21 +85,53 @@ test("every node is reachable from the start and every path terminates without a
   assert.ok(longestPath <= 8);
 });
 
-test("branch mode starts at the root while regular practice excludes branch-only nodes", () => {
+test("branch mode starts at the root while LINE and random practice use only questions 1, 5, and 9", () => {
   const scenario = branchScenarios[0];
   const branchStart = selectQuestions(bank, [], scenario.mode);
   assert.deepEqual(branchStart.map((question) => question.id), [scenario.startId]);
-  const regularModes = ["line", "phone", "shop", "random"];
-  for (const mode of regularModes) {
-    const selected = selectQuestions(bank, [], mode);
-    assert.equal(selected.length, 3);
-    assert.ok(selected.every((question) => !question.branchScenario));
-  }
+  const lineQuestions = selectQuestions(bank, [], "line");
+  assert.equal(lineQuestions.length, 3);
+  assert.deepEqual(lineQuestions.map((question) => question.id).sort(), [...activeLineQuestionIds].sort());
+  assert.ok(lineQuestions.every((question) => question.type === "line" && !question.branchScenario));
+  const randomQuestions = selectQuestions(bank, [], "random");
+  assert.equal(randomQuestions.length, 3);
+  assert.ok(randomQuestions.every((question) => !question.branchScenario));
+});
+
+test("the replacement quiz contains the nine supplied LINE scam scenarios", () => {
+  const regular = bank.filter((question) => !question.branchScenario);
+  assert.equal(regular.length, 9);
+  assert.deepEqual(regular.map((question) => question.id).sort(), Array.from({ length: 9 }, (_, i) => `line-scam-${i + 1}`).sort());
+  assert.ok(regular.every((question) => question.type === "line" && question.options.length === 3));
+  assert.deepEqual(new Set(regular.map((question) => question.answer)), new Set([1]));
+  assert.match(regular[0].text, /寵物攝影比賽/);
+  assert.match(regular[8].text, /1,000 元保證金/);
+});
+
+test("question 5 retains the safe hang-up answer and explicit scam warning", () => {
+  const question = bank.find((item) => item.id === "line-scam-5");
+  assert.equal(question.interaction, "support-call");
+  assert.equal(question.answer, 1);
+  assert.match(question.options[1], /立即掛斷電話/);
+  assert.match(question.explain, /絕不會主動以語音電話聯繫用戶/);
+});
+
+test("all mode includes the three active LINE questions without branch-only nodes", () => {
+  const selected = selectQuestions(bank, [], "all");
+  assert.equal(selected.length, 3);
+  assert.deepEqual(selected.map((question) => question.id).sort(), [...activeLineQuestionIds].sort());
+  assert.deepEqual(new Set(selected.map((question) => question.type)), new Set(["line"]));
+  assert.ok(selected.every((question) => !question.branchScenario));
 });
 
 test("the practice page exposes the branch scenario entry", () => {
   assert.match(practice(), /data-start="borrow-branch"/);
   assert.match(practice(), /熟人借錢分支/);
+  assert.match(practice(), /data-start="line"/);
+  assert.match(practice(), /第 1、5、9 題/);
+  assert.match(practice(), /3 題完整練習/);
+  assert.match(practice(), /data-start="random"/);
+  assert.match(practice(), /答錯扣 NT\$100/);
 });
 
 test("VaultTraining exposes scenario history and accepts the branch start mode", () => {
@@ -110,20 +146,27 @@ test("VaultTraining exposes scenario history and accepts the branch start mode",
     initIntegration({ start: (mode) => starts.push(mode) });
     assert.equal(typeof window.VaultTraining.getScenarioResults, "function");
     window.VaultTraining.startPractice("borrow-branch");
+    window.VaultTraining.startPractice("all");
     window.VaultTraining.startPractice("phone");
     window.VaultTraining.startPractice("unrecognized-mode");
-    assert.deepEqual(starts, ["borrow-branch", "phone", "random"]);
+    assert.deepEqual(starts, ["borrow-branch", "all", "phone", "random"]);
   } finally {
     if (descriptor) Object.defineProperty(globalThis, "window", descriptor);
     else delete globalThis.window;
   }
 });
 
-test("branch attempts earn stars without changing the nine-question completion total", () => {
+test("branch attempts earn stars without changing the three-question completion total", () => {
   const rewards = getRewards([{ id: "l4", correct: false }], bank);
   assert.equal(rewards.stars, 1);
   assert.equal(rewards.completed, 0);
-  assert.equal(rewards.total, 9);
+  assert.equal(rewards.total, 3);
+});
+
+test("the companion still earns the crown at nine stars after the active quiz is shortened", () => {
+  assert.equal(getCompanion(3, 3).stage, "helper");
+  assert.equal(getCompanion(3, 3).remaining, 6);
+  assert.equal(getCompanion(9, 3).stage, "guardian");
 });
 
 test("an answered branch node restores its selected answer and next target", () => {
@@ -233,7 +276,7 @@ test("a completed scenario is stored locally, retrieved as a copy, and emitted a
     returnedCopy[0].path[0].optionText = "被修改的副本";
     assert.equal(getScenarioResults()[0].path[0].optionText, byId.get("l4").options[2]);
 
-    recordResult({ questionId: "l1", correct: false });
+    recordResult({ questionId: "line-scam-1", correct: false });
     assert.equal(getState().attempts.length, 1);
     assert.equal(JSON.parse(data.get("vault-training-v1")).attempts.length, 1);
     assert.equal(getScenarioResults().length, 1);

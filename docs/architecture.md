@@ -65,7 +65,7 @@
 
 `localStorage` 使用 `vault-training-v1` 保存一般逐題紀錄與設定；`sessionStorage` 使用 `vault-exercise-v1` 還原同分頁練習進度。保留既有 key，避免升級後遺失資料。
 
-分支練習由 `borrow-branch` 啟動，沿著每個答案的 `next` 節點動態延伸會話；中途節點不會混入一般隨機練習。分支答案、下一個節點與已走過的路徑會放在既有 `sessionStorage` 會話中，重新整理可接續。完成時另把逐步節點／題目、所選選項、結局 ID 與得分保存至本機 `localStorage` 的 `vault-scenario-results-v1`，並派發 `vault:scenario-result-saved`。此資料不會送到伺服器。分支作答照常記錄並獲得星星，但「完成全部情境」仍只計算原本 9 題一般題，避免要求玩家走遍互斥路徑。
+分支練習由 `borrow-branch` 啟動，沿著每個答案的 `next` 節點動態延伸會話；中途節點不會混入一般隨機練習。分支答案、下一個節點與已走過的路徑會放在既有 `sessionStorage` 會話中，重新整理可接續。完成時另把逐步節點／題目、所選選項、結局 ID 與得分保存至本機 `localStorage` 的 `vault-scenario-results-v1`，並派發 `vault:scenario-result-saved`。此資料不會送到伺服器。分支作答照常記錄並獲得星星；「完成全部情境」只計算目前開放練習的 LINE 第 1、5、9 題，避免把未開放題目算進進度。
 
 ## 網站入口
 

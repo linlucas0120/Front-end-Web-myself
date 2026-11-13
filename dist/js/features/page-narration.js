@@ -2,7 +2,7 @@
 export function pageNarration(hash, main) {
   switch (hash.replace(/^#/, "")) {
     case "practice":
-      return "請選訊息防詐、電話防詐或網購防詐，每次三題。按隨機練習，可以直接開始三題。";
+      return "LINE 詐騙情境測驗只練第 1、5、9 題，共三題；也可按隨機練習，挑戰這三題。熟人借錢分支會依選擇進入不同情境。";
     case "rewards":
     case "review":
       return `我的獎勵。${main.querySelector(".companion-count")?.innerText || ""}。按繼續練習，就可以再做三題。`;
